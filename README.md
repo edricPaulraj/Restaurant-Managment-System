@@ -43,7 +43,7 @@ How to make it work properly
   1. Cashier logs in to check in customers into an available table
   2. Waiter logs in and adds the order for checked in tables // note: waiter can only select tables that are occupied other wise it wont add in to payment details
   3. Kitchen logs in to view order and then complete the order
-  4. Owner logs in at the end to check for profits and orders that have been paid
+  4. Owner logs in at the end to check for profits and orders that have been paid (You cannot register as owner, here are prebuilt in date for owner, username: Owner, password: Owner1234)
 
 ________________________________________________________________________________________________________________________________________________________________________________________________
 
