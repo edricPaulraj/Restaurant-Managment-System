@@ -1,0 +1,420 @@
+doctype html
+html
+  head
+    title= title
+    link(rel='stylesheet', href='/stylesheets/style.css')
+  body
+    block content
+        if user.role == 'waiter'
+            div.waiter-dashboard
+                h1 Add Order
+                form(action="/add-order" method="POST")
+                    // get tableID from table in db
+                    select(name="tableID" required)
+                        option(value='' disabled selected) Select Table
+                        each table in tables
+                            option(value=table.tableID)= table.tableID
+                    br
+                    // add items to order
+                    select(name="item" required id="item")
+                        option(value='' disabled selected) Select Items
+                        each item in items
+                            option(value=item.itemID)= item.itemName
+                    input(type="number" name="quantity" placeholder="Quantity" min="1" required id="quantity")
+                    br
+                    button(type="button" id="add-item") Add Item
+                    // display added items in a list
+                    ul#order-items
+                    button(type='submit') Add Order
+                a(href='/logout') Logout
+            
+        else if user.role == 'kitchen'
+            div.kitchen-dashboard
+                h1 Kitchen Dashboard
+                h2 Pending Orders
+                            
+                div#orderContainer
+                div#orderDetailsContainer
+                    div#detailContent
+                a(href='/logout') Logout
+
+                script.
+                    const orderDetailsContainer = document.getElementById('orderDetailsContainer');
+                    orderDetailsContainer.addEventListener('click', e => {
+                        if (e.target !== e.currentTarget) return;
+                        orderDetailsContainer.classList.remove('active');
+                    });
+                    function getUpdatedDetails() {
+                        fetch('/get-pending-orders')
+                        .then(response => response.json())
+                        .then(data => {
+                            const orderContainer = document.getElementById('orderContainer');
+                            let servedStatus = 0;
+
+                            orderContainer.innerHTML = '';
+
+                            if (!data.length) {
+                                orderContainer.innerHTML = '<p>No pending orders.</p>';
+                                return;
+                            }
+
+                            data.forEach(order => {
+                                const orderDiv = document.createElement('div');
+                                orderDiv.className = 'order';
+                                let itemsDone = 0;
+                                let itemLength;
+
+                                if (order.status === 'served') {
+                                    servedStatus++;
+                                    return;
+                                };
+
+                                if (order.status === 'new') {
+                                    orderDiv.innerHTML = `
+                                        <h3>Order ID: ${order.orderID}</h3>
+                                        <p>Table Number: ${order.tableID}</p>
+                                        <select name="status" class="status">
+                                            <option value="new" selected disabled>New</option>
+                                            <option value="preparing">Preparing</option>
+                                        </select>
+                                        <button class="show-details" data-order-id="${order.orderID}">Show Details</button>`;
+                                    orderContainer.appendChild(orderDiv);
+                                }
+
+                                if (order.status === 'preparing') {
+                                    orderDiv.innerHTML = `
+                                        <h3>Order ID: ${order.orderID}</h3>
+                                        <p>Table Number: ${order.tableID}</p>
+                                        <select name="status" class="status">
+                                            <option value="preparing" selected disabled>Preparing</option>
+                                            <option value="ready">Ready</option>
+                                        </select>
+                                        <button class="show-details" data-order-id="${order.orderID}">Show Details</button>`;
+                                    orderContainer.appendChild(orderDiv);
+                                }
+
+                                if (order.status === 'ready') {
+                                    orderDiv.innerHTML = `
+                                        <h3>Order ID: ${order.orderID}</h3>
+                                        <p>Table Number: ${order.tableID}</p>
+                                        <select name="status" class="status">
+                                            <option value="ready" selected disabled>Ready</option>
+                                            <option value="served">Served</option>
+                                        </select>
+                                        <button class="show-details" data-order-id="${order.orderID}">Show Details</button>`;
+                                    orderContainer.appendChild(orderDiv);
+                                }
+
+                                orderDiv.querySelector('.show-details').addEventListener('click', () => {
+                                    fetch(`/get-order-details/${order.orderID}`)
+                                        .then(response => response.json())
+                                        .then(details => {
+                                            orderDetailsContainer.classList.add('active');
+                                            const detailContent = document.getElementById('detailContent');
+                                            itemLength = details.length;
+                                            itemsDone = 0;
+                                            detailContent.innerHTML = `
+                                                <h3>Order ID: ${order.orderID}</h3>
+                                                <p>Table Number: ${order.tableID}</p>
+                                                <P>Status: ${order.status[0].toUpperCase() + order.status.slice(1)}</p>`;
+                                            details.forEach(item => {
+                                                const itemDiv = document.createElement('div');
+                                                itemDiv.className = 'itemContainer';
+                                                if (item.status === 'uncompleted') {
+                                                    itemDiv.innerHTML = `<p>Item: ${item.itemName} - ${item.quantity}<p><input type="checkbox" class="itemStatus"></input>`
+                                                } else {
+                                                    itemDiv.innerHTML = `<p>Item: ${item.itemName} - ${item.quantity}<p><input type="checkbox" checked class="itemStatus"></input>`
+                                                    itemsDone++;
+                                                }
+                                                detailContent.appendChild(itemDiv);
+                                                const itemStatus = itemDiv.querySelector('.itemStatus');
+                                                if (itemStatus) {
+                                                    itemStatus.addEventListener('change', () => {
+                                                        // update status for orderItem
+                                                        const orderItemID = item.orderItemID;
+                                                        const itemStatusChecked = itemStatus.checked;
+                                                        const orderStatus = orderDiv.querySelector('.status');
+
+                                                        if (itemStatusChecked) {
+                                                        
+                                                            itemsDone++;
+
+                                                        } else if (!itemStatusChecked && itemsDone > 0) itemsDone--;
+
+                                                        if (order.status === 'new' && itemsDone > 0) {
+                                                        
+                                                            // update status
+                                                            const currentOrderID = order.orderID
+                                                            const currentValue = 'preparing'
+                                                            order.status = 'preparing';
+                                                            fetch('/update-order-status', {
+                                                                method: 'POST',
+                                                                headers: {
+                                                                    'Content-Type': 'application/json'
+                                                                },
+                                                                body: JSON.stringify({
+                                                                    currentOrderID,
+                                                                    currentValue
+                                                                })
+                                                            })
+
+                                                            // change status on page
+
+                                                            orderStatus.innerHTML = `
+                                                                <option value="preparing" selected disabled>Preparing</option>
+                                                                <option value="ready">Ready</option>
+                                                                `;
+                                                        
+                                                        }
+
+                                                        fetch('/update-orderItem-status', {
+                                                            method: 'POST',
+                                                            headers: {
+                                                                'Content-Type': 'application/json'
+                                                            },
+                                                            body: JSON.stringify({
+                                                                orderItemID,
+                                                                itemStatusChecked
+                                                            })
+                                                        })
+                                                    });
+                                                }
+                                            });
+                                        });
+                                });
+                                const orderStatus = orderDiv.querySelector('.status')
+                                if (orderStatus) {
+                                    orderStatus.addEventListener('change', () => { 
+                                        // update kitchen status to current
+                                        const currentOrderID = order.orderID;
+                                        const currentValue = orderStatus.value;
+                                        if (currentValue === 'ready' && itemLength !== itemsDone) {
+                                        
+                                            orderStatus.value = 'preparing';
+                                            return;
+                                        
+                                        }
+                                        fetch('/update-order-status', {
+                                            method: 'POST',
+                                            headers: {
+                                                'Content-Type': 'application/json'
+                                            },
+                                            body: JSON.stringify({
+                                                currentOrderID,
+                                                currentValue
+                                            })
+                                        })
+                                        .then(response => response.json())
+                                        .then(() => {
+                                        
+                                            getUpdatedDetails();
+                                        
+                                        });
+                                    });
+
+                                }
+
+                            });
+                            if (servedStatus === data.length) {
+                                orderContainer.innerHTML = '<p>No pending orders.</p>';
+                            }
+                        });
+
+                    }
+                    getUpdatedDetails()
+   
+        else if user.role == 'cashier'
+            div.cashier-dashboard
+                h1 Cashier dashboard
+                h2 Tables
+                            
+                div#tableContainer
+                div#paymentDetailContainer
+                    div#paymentDetail
+                a(href='/logout') Logout
+
+                script.
+                    const paymentDetailContainer = document.getElementById('paymentDetailContainer');
+                    paymentDetailContainer.addEventListener('click', e => {
+                        if (e.target !== e.currentTarget) return;
+                        paymentDetailContainer.classList.remove('active');
+                    });
+                    function loadTableDate() {
+                        fetch('/get-table-data')
+                        .then(response => response.json())
+                        .then(data => {
+                            // crate table data container
+                            const tableContainer = document.getElementById('tableContainer');
+                            tableContainer.innerHTML = '';
+                            data.forEach(table => {
+                                const tableDiv = document.createElement('div');
+                                tableDiv.className = 'tableInfo';
+                                if (table.forReservation === 1) {
+                                    if (table.status === 'available') {
+                                        tableDiv.innerHTML = `<h3>Table Number: ${table.tableNumber}</h3>
+                                            <p>Capacity: ${table.seats}</p>
+                                            <label for="status">Status:</label>
+                                            <select id="status" name="status" class="tableStatus">
+                                                <option selected value="available">Available</option>
+                                                <option value="occupied">Occupied</option>
+                                            </select>
+                                            <p style="font-weight: bold;">Note: FOR RESERVATIONS ONLY</p>`;
+                                    } else {
+                                        tableDiv.innerHTML = `<h3>Table Number: ${table.tableNumber}</h3>
+                                            <p>Capacity: ${table.seats}</p>
+                                            <p>Status: Occupied</p>
+                                            <button class="checkOut">Check Out</button>
+                                            <p style="font-weight: bold;">Note: FOR RESERVATIONS ONLY</p>`;
+                                    }
+                                } else {
+                                    if (table.status === 'available') {
+                                        tableDiv.innerHTML = `<h3>Table Number: ${table.tableNumber}</h3>
+                                            <p>Capacity: ${table.seats}</p>
+                                            <label for="status">Status:</label>
+                                            <select id="status" name="status" class="tableStatus">
+                                                <option selected value="available">Available</option>
+                                                <option value="occupied">Occupied</option>
+                                            </select>`;
+                                    } else {
+                                        tableDiv.innerHTML = `<h3>Table Number: ${table.tableNumber}</h3>
+                                            <p>Capacity: ${table.seats}</p>
+                                            <p>Status: Occupied</p>
+                                            <button class="checkOut">Check Out</button>`;
+                                    }
+                                }
+                                tableContainer.appendChild(tableDiv);
+                                const status = tableDiv.querySelector('.tableStatus');
+                                const checkOut = tableDiv.querySelector('.checkOut');
+                                if (status) {
+                                    status.addEventListener('change', () => {
+                                        // update status in db for the table
+                                        const statusValue = status.value;
+                                        const tableID = table.tableID;
+                                        fetch('/update-tableStatus', {
+                                            method: 'POST',
+                                            headers: {
+                                                'Content-Type': 'application/json'
+                                            },
+                                            body: JSON.stringify({
+                                                statusValue,
+                                                tableID
+                                            })
+                                        })
+                                        .then(response => response.json())
+                                        .then(() => {
+                                            loadTableDate();
+                                        })
+                                    });
+                                }
+                                if (checkOut) {
+                                    checkOut.addEventListener('click', () => {
+                                        paymentDetailContainer.classList.add('active');
+                                        const paymentDetail = document.getElementById('paymentDetail');
+                                        paymentDetail.innerHTML = '';
+                                        // show payment method as select element and total amount of cost for the specific time
+                                        fetch(`/get-totalAmount/${table.tableID}`)
+                                        .then(response => response.json())
+                                        .then(totalAmount => {
+                                            paymentDetail.innerHTML = `<h3>Table Number: ${table.tableNumber}</h3>
+                                                <p>Total Amount: ${totalAmount.total}</p>`;
+                                            const detail = document.createElement('div');
+                                            detail.className = 'detail';
+                                            detail.innerHTML = `<label>Payment Method:</label>
+                                                <select id="paymentMethod">
+                                                    <option value="cash">Cash</option>
+                                                    <option value="card">Card</option>
+                                                </select>
+                                                <br />
+                                                <button id="confirmPayment">Confirm Payment</button>`;
+                                            paymentDetail.appendChild(detail);
+                                            const confirmBtn = detail.querySelector('#confirmPayment');
+                                            if (confirmBtn) {
+                                                confirmBtn.addEventListener('click', () => {
+                                                    // post paymentDetail to db
+                                                    const total = totalAmount.total;
+                                                    const method = detail.querySelector('#paymentMethod').value;
+                                                    const tableID = table.tableID;
+                                                    fetch('/post-paymentDetail', {
+                                                        method: 'POST',
+                                                        headers: {
+                                                            'Content-Type': 'application/json'
+                                                        },
+                                                        body: JSON.stringify({
+                                                            total,
+                                                            method,
+                                                            tableID
+                                                        })
+                                                    })
+                                                    .then(response => response.json())
+                                                    .then(() => {
+                                                        paymentDetailContainer.classList.remove('active');
+                                                        loadTableDate();
+                                                    })
+                                                });
+                                            }
+                                        })
+                                    });
+                                }
+                            });
+                        })
+                    }
+                    loadTableDate();
+
+        else if user.role == 'owner'
+            div.owner-dashboard
+                h1 Owner Dashboard
+                form(action="/get-daily-sales" method="POST")
+                    h2 Select Date
+                    input(type="date" name="date" required)
+                    button(type='submit') Get Daily Sales
+                if success
+                    h2 Daily Sales for #{dates}
+                    p Total Sales: £#{totalSales}
+                    p Total Orders: #{totalOrders}
+                else
+                    p No sales data available for the selected date.
+
+                if success
+                    h2 Orders for #{dates}
+                    table
+                        thead
+                            tr
+                                th orderID
+                                th table number
+                                th Amount
+
+                        tbody
+                            for order in orderDetails
+                                tr
+                                    td= order.orderID
+                                    td= order.tableID
+                                    td £#{order.amount}
+                else 
+                    p No orders found for the selected date.
+                a(href='/logout') Logout
+                                
+        if user.role == 'waiter'
+            script.
+                document.getElementById("add-item").addEventListener("click", () => {
+                    const itemSelect = document.getElementById("item");
+                    const quantityInput = document.getElementById("quantity");
+                    const list = document.getElementById("order-items");
+                    const itemID = itemSelect.value;
+                    const itemText = itemSelect.options[itemSelect.selectedIndex] ? itemSelect.options[itemSelect.selectedIndex].text : '';
+                    const quantity = quantityInput.value;
+                    if (!itemText || !quantity) {
+                        alert("Please select an item and enter a quantity.");
+                        return;
+                    }
+                    const li = document.createElement("li");
+                    li.className = "item";
+                    li.innerHTML = `${itemText} - Quantity: ${quantity}
+                    <input type="hidden" name="items[]" value="${itemID}">
+                    <input type="hidden" name="quantities[]" value="${quantity}"> <br />
+                    <button type="button" class="delete-btn">Delete</button>`;
+                    li.querySelector(".delete-btn").addEventListener("click", () => {
+                        li.remove();
+                    });
+
+                    list.appendChild(li);
+                });

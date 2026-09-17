@@ -1,0 +1,23 @@
+extends layout
+
+block content
+	div.register
+		h1 Register
+		form(action="/register" method="POST")
+			input(type='text', placeholder='Username' name="username" required)
+			input(type='password', placeholder='Password' name="password" required)
+			select(name="role" required)
+				option(value='' disabled selected) Select Role
+				option(value='waiter') Waiter
+				option(value='kitchen') Kitchen
+				option(value='cashier') Cashier
+			br
+			button(type='submit') Register
+			if message
+				p(class=success ? 'success' : 'error')= message
+
+	if success
+		script.
+			setTimeout(() => {
+				window.location.href = '/';
+			}, 1000);
