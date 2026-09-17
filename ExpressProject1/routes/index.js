@@ -105,6 +105,8 @@ router.post('/login', function (req, res, next) {
 
         if (err) {
 
+            console.log(err);
+
             return res.render('index', {
 
                 message: 'Something went wrong, please try again',
