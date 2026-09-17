@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "start": "node ExpressProject1/bin/www"
+  },
   "dependencies": {
     "dotenv": "^17.4.2",
     "express-session": "^1.19.0",
