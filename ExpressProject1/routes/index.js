@@ -17,7 +17,7 @@ router.get('/dashboard', function (req, res) {
         return res.redirect('/');
     }
 
-    db.query('SELECT tableID FROM restaurant_table', (err, results) => {
+    db.query('SELECT tableID FROM restaurant_table WHERE status = "occupied"', (err, results) => {
 
         if (err) {
             console.error(err);
